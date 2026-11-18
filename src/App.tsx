@@ -107,6 +107,7 @@ export default function App() {
   const knownRemoteLogKeysRef = useRef<Set<string>>(new Set());
   const pendingLogDateRef = useRef<string | null>(null);
   const cloudUnsubRef = useRef<(() => void) | null>(null);
+  const authGenRef = useRef(0);
   const [asyncError, setAsyncError] = useState<Error | null>(null);
 
   if (asyncError) {
@@ -150,6 +151,7 @@ export default function App() {
 
     let cancelled = false;
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
+      const gen = ++authGenRef.current;
       cloudUnsubRef.current?.();
       cloudUnsubRef.current = null;
       knownRemoteLogKeysRef.current.clear();
@@ -171,13 +173,18 @@ export default function App() {
             nextUser,
             latestStateRef.current.settings
           );
-          if (cancelled || userRef.current?.uid !== nextUser.uid) return;
+          if (cancelled || authGenRef.current !== gen || userRef.current?.uid !== nextUser.uid) {
+            return;
+          }
 
           if (!hasRemoteDecks) {
             await uploadLocalStateToCloud(nextUser.uid, latestStateRef.current);
           }
-          if (cancelled || userRef.current?.uid !== nextUser.uid) return;
+          if (cancelled || authGenRef.current !== gen || userRef.current?.uid !== nextUser.uid) {
+            return;
+          }
 
+          cloudUnsubRef.current?.();
           const unsubCloud = subscribeToUserCloudData(nextUser.uid, {
             onSettings: (remoteSettings) => {
               setAppState((prev) => ({
@@ -227,11 +234,17 @@ export default function App() {
             onSynced: () => {
               setSyncStatus('synced');
             },
+            onError: (err) => {
+              if (!cancelled && authGenRef.current === gen) {
+                setSyncStatus('error');
+                setAsyncError(err);
+              }
+            },
           });
 
           cloudUnsubRef.current = unsubCloud;
         } catch (err) {
-          if (!cancelled) {
+          if (!cancelled && authGenRef.current === gen) {
             setSyncStatus('error');
             setAsyncError(err instanceof Error ? err : new Error(String(err)));
           }

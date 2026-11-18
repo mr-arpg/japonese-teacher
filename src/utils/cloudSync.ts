@@ -675,6 +675,7 @@ export interface CloudSubscriptionCallbacks {
   onDecks: (decks: Deck[]) => void;
   onLogs: (logs: Record<string, DailyStudyLog>, remoteKeys: Set<string>) => void;
   onSynced?: () => void;
+  onError?: (error: Error) => void;
 }
 
 export function subscribeToUserCloudData(
@@ -682,6 +683,22 @@ export function subscribeToUserCloudData(
   callbacks: CloudSubscriptionCallbacks
 ): Unsubscribe {
   let disposed = false;
+
+  const forwardSnapshotError = (
+    error: unknown,
+    operationType: OperationType,
+    path: string
+  ) => {
+    try {
+      handleFirestoreError(error, operationType, path);
+    } catch (wrapped) {
+      if (!disposed) {
+        callbacks.onError?.(
+          wrapped instanceof Error ? wrapped : new Error(String(wrapped))
+        );
+      }
+    }
+  };
 
   const userPath = `users/${uid}`;
   const unsubUser = onSnapshot(
@@ -697,7 +714,7 @@ export function subscribeToUserCloudData(
       callbacks.onSynced?.();
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, userPath);
+      forwardSnapshotError(error, OperationType.GET, userPath);
     }
   );
 
@@ -795,7 +812,7 @@ export function subscribeToUserCloudData(
               emitCombinedDecks();
             },
             (error) => {
-              handleFirestoreError(error, OperationType.LIST, cardsPath);
+              forwardSnapshotError(error, OperationType.LIST, cardsPath);
             }
           );
           cardUnsubs.set(meta.id, unsubCard);
@@ -805,7 +822,7 @@ export function subscribeToUserCloudData(
       emitCombinedDecks();
     },
     (error) => {
-      handleFirestoreError(error, OperationType.LIST, decksPath);
+      forwardSnapshotError(error, OperationType.LIST, decksPath);
     }
   );
 
@@ -833,7 +850,7 @@ export function subscribeToUserCloudData(
       callbacks.onSynced?.();
     },
     (error) => {
-      handleFirestoreError(error, OperationType.LIST, logsPath);
+      forwardSnapshotError(error, OperationType.LIST, logsPath);
     }
   );
 
