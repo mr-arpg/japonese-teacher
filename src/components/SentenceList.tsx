@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertCircle,
+  BookOpen,
   Eye,
   EyeOff,
   Languages,
   Loader2,
-  Sparkles,
 } from 'lucide-react';
 import { ExampleSentence } from '../types';
 import { formatSentenceForLearnedKanji } from '../utils/sentenceText';
@@ -130,13 +130,13 @@ export const SentenceList: React.FC<SentenceListProps> = ({
               {generatingSentences ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               ) : (
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
               )}
               {generatingSentences
-                ? 'Generating...'
+                ? 'Loading...'
                 : sentences.length > 0
-                ? 'Generate More A1'
-                : 'Generate A1 Examples'}
+                ? 'Load More Examples'
+                : 'Find Examples'}
             </button>
           )}
 
@@ -187,7 +187,7 @@ export const SentenceList: React.FC<SentenceListProps> = ({
         <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
           No example sentences yet.
           {onGenerateSentences
-            ? ' Click "Generate A1 Examples" to create diverse beginner sentences.'
+            ? ' Click "Find Examples" to fetch sentences from Tatoeba.'
             : ''}
         </p>
       ) : (

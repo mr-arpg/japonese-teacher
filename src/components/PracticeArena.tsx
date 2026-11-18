@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { Deck, ExampleSentence, SessionConfig, SrsGrade, StudyCard } from '../types';
-import { generateA1Sentences } from '../utils/dictionaryApi';
+import { fetchMoreExampleSentences } from '../utils/dictionaryApi';
 import { KanjiStrokeData, loadKanjiVgData } from '../utils/kanjiVg';
 import {
   finalizeRomajiToHiragana,
@@ -285,7 +285,7 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
     setGeneratingSentences(true);
     setGenerateError(null);
     try {
-      const generated = await generateA1Sentences({
+      const generated = await fetchMoreExampleSentences({
         target,
         meanings: currentCard.meanings,
         readings:
@@ -301,7 +301,7 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
       }
     } catch (err: unknown) {
       setGenerateError(
-        err instanceof Error ? err.message : 'Unable to generate A1 sentences.'
+        err instanceof Error ? err.message : 'Unable to load example sentences.'
       );
     } finally {
       setGeneratingSentences(false);

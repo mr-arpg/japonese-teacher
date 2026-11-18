@@ -25,7 +25,7 @@ import {
   fetchKanjiCompounds,
   fetchKanjiDetail,
   fetchKanjiList,
-  generateA1Sentences,
+  fetchMoreExampleSentences,
   searchKanjiByQuery,
 } from '../utils/dictionaryApi';
 import { KanjiStrokeData, KanjiVgParsed, loadKanjiVgData } from '../utils/kanjiVg';
@@ -263,7 +263,7 @@ export const KanjiDictionaryView: React.FC<KanjiDictionaryViewProps> = ({
     setGeneratingSentences(true);
     setGenerateError(null);
     try {
-      const generated = await generateA1Sentences({
+      const generated = await fetchMoreExampleSentences({
         target: detail.kanji,
         meanings: detail.meanings,
         readings: [...detail.kunReadings, ...detail.onReadings],
@@ -274,7 +274,7 @@ export const KanjiDictionaryView: React.FC<KanjiDictionaryViewProps> = ({
       setExampleSentences((prev) => [...generated, ...prev]);
     } catch (err: unknown) {
       setGenerateError(
-        err instanceof Error ? err.message : 'Unable to generate A1 sentences.'
+        err instanceof Error ? err.message : 'Unable to load example sentences.'
       );
     } finally {
       setGeneratingSentences(false);

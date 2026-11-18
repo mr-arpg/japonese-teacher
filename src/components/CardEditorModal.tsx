@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertCircle, BookOpen, CheckCircle2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { DeckType, ExampleSentence, StudyCard } from '../types';
-import { generateA1Sentences } from '../utils/dictionaryApi';
+import { fetchMoreExampleSentences } from '../utils/dictionaryApi';
 import { fetchKanjiInfo } from '../utils/kanjiApi';
 import { loadKanjiVgData } from '../utils/kanjiVg';
 import {
@@ -197,7 +197,7 @@ export const CardEditorModal: React.FC<CardEditorModalProps> = ({
         : [kana.trim()].filter(Boolean);
 
     try {
-      const generated = await generateA1Sentences({
+      const generated = await fetchMoreExampleSentences({
         target,
         meanings,
         readings,
@@ -212,7 +212,7 @@ export const CardEditorModal: React.FC<CardEditorModalProps> = ({
       }
     } catch (err: unknown) {
       setGenSentencesError(
-        err instanceof Error ? err.message : 'Unable to generate A1 sentences.'
+        err instanceof Error ? err.message : 'Unable to load example sentences.'
       );
     } finally {
       setGenSentencesLoading(false);
@@ -372,7 +372,7 @@ export const CardEditorModal: React.FC<CardEditorModalProps> = ({
                   {lookupLoading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   ) : (
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                    <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
                   Auto-Fill from KanjiAPI & KanjiVG
                 </button>
@@ -593,9 +593,9 @@ export const CardEditorModal: React.FC<CardEditorModalProps> = ({
                   {genSentencesLoading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   ) : (
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                    <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
-                  {genSentencesLoading ? 'Generating...' : 'Generate A1 Examples'}
+                  {genSentencesLoading ? 'Loading...' : 'Find Examples'}
                 </button>
                 <button
                   type="button"

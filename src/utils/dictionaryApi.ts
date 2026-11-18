@@ -408,7 +408,7 @@ export async function fetchDictionarySentences(
   }
 }
 
-export interface GenerateA1SentencesParams {
+export interface FetchExampleSentencesParams {
   target: string;
   meanings?: string[];
   readings?: string[];
@@ -417,25 +417,173 @@ export interface GenerateA1SentencesParams {
   excludeSentences?: string[];
 }
 
-export async function generateA1Sentences(
-  params: GenerateA1SentencesParams
+function normalizeJapaneseForDedup(text: string): string {
+  return text.replace(/[\s。、・「」『』？！!?]/g, '').trim();
+}
+
+function buildDeterministicExamples(
+  params: FetchExampleSentencesParams,
+  excludeSet: Set<string>,
+  needed: number
+): ExampleSentence[] {
+  const target = params.target.trim();
+  if (!target || needed <= 0) return [];
+
+  const reading = params.readings?.find((r) => r.trim().length > 0)?.trim() || target;
+  const meaning = params.meanings?.find((m) => m.trim().length > 0)?.trim() || target;
+  const hasKanji = /[\u4E00-\u9FAF\u3400-\u4DBF]/.test(target);
+  const targetSeg = hasKanji ? { text: target, reading } : { text: target };
+  const now = Date.now();
+
+  const templates: Array<{
+    segments: Array<{ text: string; reading?: string }>;
+    english: string;
+  }> = [
+    {
+      segments: [
+        { text: '毎日', reading: 'まいにち' },
+        { text: '「' },
+        targetSeg,
+        { text: '」をよく' },
+        { text: '使', reading: 'つか' },
+        { text: 'います。' },
+      ],
+      english: `I often use "${target}" (${meaning}) every day.`,
+    },
+    {
+      segments: [
+        { text: 'ノートに「' },
+        targetSeg,
+        { text: '」を' },
+        { text: '書', reading: 'か' },
+        { text: 'きました。' },
+      ],
+      english: `I wrote "${target}" (${meaning}) in my notebook.`,
+    },
+    {
+      segments: [
+        { text: 'この「' },
+        targetSeg,
+        { text: '」という' },
+        { text: '言葉', reading: 'ことば' },
+        { text: 'を' },
+        { text: '覚', reading: 'おぼ' },
+        { text: 'えました。' },
+      ],
+      english: `I memorized this word "${target}" (${meaning}).`,
+    },
+    {
+      segments: [
+        { text: '会話', reading: 'かいわ' },
+        { text: 'で「' },
+        targetSeg,
+        { text: '」をよく' },
+        { text: '聞', reading: 'き' },
+        { text: 'きます。' },
+      ],
+      english: `I often hear "${target}" (${meaning}) in conversation.`,
+    },
+    {
+      segments: [
+        { text: '教科書', reading: 'きょうかしょ' },
+        { text: 'に「' },
+        targetSeg,
+        { text: '」が' },
+        { text: '載', reading: 'の' },
+        { text: 'っています。' },
+      ],
+      english: `"${target}" (${meaning}) appears in the textbook.`,
+    },
+  ];
+
+  const out: ExampleSentence[] = [];
+  for (let i = 0; i < templates.length && out.length < needed; i++) {
+    const tpl = templates[i];
+    const japanese = tpl.segments.map((s) => s.text).join('');
+    if (excludeSet.has(normalizeJapaneseForDedup(japanese))) continue;
+    excludeSet.add(normalizeJapaneseForDedup(japanese));
+    const furigana = tpl.segments.map((s) => s.reading ?? s.text).join('');
+    out.push({
+      id: `tpl-${now}-${i}`,
+      japanese,
+      furigana,
+      english: tpl.english,
+      targetHighlight: target,
+      segments: tpl.segments,
+    });
+  }
+  return out;
+}
+
+export async function fetchMoreExampleSentences(
+  params: FetchExampleSentencesParams
 ): Promise<ExampleSentence[]> {
-  const res = await fetch('/api/sentences/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
+  const target = params.target.trim();
+  if (!target) return [];
 
-  const data = (await res.json().catch(() => ({}))) as {
-    sentences?: ExampleSentence[];
-    error?: string;
-  };
+  const desiredCount = Math.min(8, Math.max(1, params.count ?? 4));
+  const excludeSet = new Set(
+    (params.excludeSentences ?? []).map((s) => normalizeJapaneseForDedup(s))
+  );
 
-  if (!res.ok) {
-    throw new Error(data.error || `Sentence generation failed (HTTP ${res.status}).`);
+  const candidates: ExampleSentence[] = [];
+
+  for (let page = 1; page <= 2; page++) {
+    try {
+      const res = await fetch(
+        `/api/dictionary/sentences?query=${encodeURIComponent(target)}&limit=15&page=${page}`
+      );
+      if (!res.ok) break;
+
+      const json = (await res.json()) as RawTatoebaResponse;
+      const rows = json.results ?? [];
+      if (rows.length === 0) break;
+
+      for (const row of rows) {
+        const english = row.translations
+          ?.flat()
+          .find((t) => t.lang === 'eng' && t.text)?.text;
+        const hrkt = row.transcriptions?.find(
+          (t) => t.script === 'Hrkt' && t.text
+        )?.text;
+
+        if (!english || !hrkt) continue;
+
+        const parsed = parseTatoebaHrkt(hrkt);
+        const norm = normalizeJapaneseForDedup(parsed.japanese);
+        if (!norm || excludeSet.has(norm)) continue;
+        excludeSet.add(norm);
+
+        candidates.push({
+          id: `tatoeba-${row.id ?? `${page}-${candidates.length}`}`,
+          japanese: parsed.japanese,
+          furigana: parsed.furigana,
+          english,
+          targetHighlight: target,
+          segments: parsed.segments,
+        });
+      }
+
+      if (candidates.length >= desiredCount * 2) break;
+    } catch {
+      break;
+    }
   }
 
-  return data.sentences ?? [];
+  // Prefer shorter, beginner-friendly sentences first
+  candidates.sort((a, b) => a.japanese.length - b.japanese.length);
+  const selected = candidates.slice(0, desiredCount);
+
+  if (selected.length < desiredCount) {
+    const fallback = buildDeterministicExamples(
+      params,
+      excludeSet,
+      desiredCount - selected.length
+    );
+    selected.push(...fallback);
+  }
+
+  return selected;
 }
 
 export function buildKanjiCardFromDictionary(

@@ -191,9 +191,7 @@ service cloud.firestore {
 
         match /cards/{cardId} {
           allow get: if isOwner(userId) && isValidId(userId) && isValidId(deckId) && isValidId(cardId);
-          allow list: if isOwner(userId)
-            && resource.data.uid == request.auth.uid
-            && resource.data.deckId == deckId;
+          allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
           allow create: if isOwner(userId)
             && isValidId(userId)
             && isValidId(deckId)

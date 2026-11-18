@@ -15,7 +15,7 @@ import {
   buildVocabCardFromDictionary,
   extractKanjiChars,
   fetchDictionarySentences,
-  generateA1Sentences,
+  fetchMoreExampleSentences,
   searchWordDictionary,
 } from '../utils/dictionaryApi';
 import { SentenceList } from './SentenceList';
@@ -225,7 +225,7 @@ export const WordDictionaryView: React.FC<WordDictionaryViewProps> = ({
       .flatMap((s) => s.englishDefinitions)
       .slice(0, 5);
     try {
-      const generated = await generateA1Sentences({
+      const generated = await fetchMoreExampleSentences({
         target: selectedHeadword,
         meanings,
         readings: selectedReading ? [selectedReading] : [],
@@ -236,7 +236,7 @@ export const WordDictionaryView: React.FC<WordDictionaryViewProps> = ({
       setExampleSentences((prev) => [...generated, ...prev]);
     } catch (err: unknown) {
       setGenerateError(
-        err instanceof Error ? err.message : 'Unable to generate A1 sentences.'
+        err instanceof Error ? err.message : 'Unable to load example sentences.'
       );
     } finally {
       setGeneratingSentences(false);

@@ -20,7 +20,7 @@ import { StatsView } from './components/StatsView';
 import { CloudSyncStatus, TopBar } from './components/TopBar';
 import { WordDictionaryView } from './components/WordDictionaryView';
 import { STARTER_DECKS } from './data/starterDecks';
-import { auth, googleProvider } from './firebase';
+import { auth, googleProvider, isFirebaseConfigured } from './firebase';
 import {
   AppState,
   Deck,
@@ -142,6 +142,12 @@ export default function App() {
 
   // Listen to Firebase Auth state & attach Firestore real-time sync when signed in
   useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setAuthReady(false);
+      setSyncStatus('local');
+      return;
+    }
+
     let cancelled = false;
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
       cloudUnsubRef.current?.();

@@ -6,11 +6,13 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
   Timestamp,
   Unsubscribe,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -196,63 +198,69 @@ export async function ensureUserProfile(
   const userRef = doc(db, 'users', user.uid);
   const cleanSettings = sanitizeSettingsForCloud(localSettings);
 
+  let snap;
   try {
-    const snap = await getDoc(userRef);
-    if (!snap.exists()) {
-      const profilePayload: Record<string, unknown> = {
-        uid: user.uid,
-        email: clampString(user.email || `${user.uid}@users.local`, 320),
-        settings: cleanSettings,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      if (user.displayName) {
-        profilePayload.displayName = clampString(user.displayName, 120);
-      }
-      if (user.photoURL) {
-        profilePayload.photoURL = clampString(user.photoURL, 1000);
-      }
-      try {
-        await setDoc(userRef, profilePayload);
-      } catch (writeErr) {
-        handleFirestoreError(writeErr, OperationType.CREATE, userPath);
-      }
-    } else {
-      const existingData = snap.data();
-      const nextEmail = clampString(user.email || existingData.email || '', 320);
-      const nextName = user.displayName ? clampString(user.displayName, 120) : undefined;
-      const nextPhoto = user.photoURL ? clampString(user.photoURL, 1000) : undefined;
-
-      const needsProfileUpdate =
-        existingData.email !== nextEmail ||
-        (nextName && existingData.displayName !== nextName) ||
-        (nextPhoto && existingData.photoURL !== nextPhoto);
-
-      if (needsProfileUpdate) {
-        const updatePayload: Record<string, unknown> = {
-          email: nextEmail,
-          settings: existingData.settings
-            ? sanitizeSettingsForCloud({ ...DEFAULT_SETTINGS, ...existingData.settings })
-            : cleanSettings,
-          updatedAt: serverTimestamp(),
-        };
-        if (nextName) updatePayload.displayName = nextName;
-        if (nextPhoto) updatePayload.photoURL = nextPhoto;
-
-        try {
-          await updateDoc(userRef, updatePayload);
-        } catch (updateErr) {
-          handleFirestoreError(updateErr, OperationType.UPDATE, userPath);
-        }
-      }
-    }
+    snap = await getDoc(userRef);
   } catch (err) {
     handleFirestoreError(err, OperationType.GET, userPath);
   }
 
+  if (!snap.exists()) {
+    const profilePayload: Record<string, unknown> = {
+      uid: user.uid,
+      email: clampString(user.email || `${user.uid}@users.local`, 320),
+      settings: cleanSettings,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    if (user.displayName) {
+      profilePayload.displayName = clampString(user.displayName, 120);
+    }
+    if (user.photoURL) {
+      profilePayload.photoURL = clampString(user.photoURL, 1000);
+    }
+    try {
+      await setDoc(userRef, profilePayload);
+    } catch (writeErr) {
+      handleFirestoreError(writeErr, OperationType.CREATE, userPath);
+    }
+  } else {
+    const existingData = snap.data();
+    const nextEmail = clampString(user.email || existingData.email || '', 320);
+    const nextName = user.displayName ? clampString(user.displayName, 120) : undefined;
+    const nextPhoto = user.photoURL ? clampString(user.photoURL, 1000) : undefined;
+
+    const needsProfileUpdate =
+      existingData.email !== nextEmail ||
+      (nextName && existingData.displayName !== nextName) ||
+      (nextPhoto && existingData.photoURL !== nextPhoto);
+
+    if (needsProfileUpdate) {
+      const updatePayload: Record<string, unknown> = {
+        email: nextEmail,
+        settings: existingData.settings
+          ? sanitizeSettingsForCloud({ ...DEFAULT_SETTINGS, ...existingData.settings })
+          : cleanSettings,
+        updatedAt: serverTimestamp(),
+      };
+      if (nextName) updatePayload.displayName = nextName;
+      if (nextPhoto) updatePayload.photoURL = nextPhoto;
+
+      try {
+        await updateDoc(userRef, updatePayload);
+      } catch (updateErr) {
+        handleFirestoreError(updateErr, OperationType.UPDATE, userPath);
+      }
+    }
+  }
+
   const decksPath = `users/${user.uid}/decks`;
   try {
-    const decksSnap = await getDocs(collection(db, 'users', user.uid, 'decks'));
+    const decksQuery = query(
+      collection(db, 'users', user.uid, 'decks'),
+      where('uid', '==', user.uid)
+    );
+    const decksSnap = await getDocs(decksQuery);
     return { hasRemoteDecks: !decksSnap.empty };
   } catch (err) {
     handleFirestoreError(err, OperationType.LIST, decksPath);
@@ -263,14 +271,14 @@ export async function uploadLocalStateToCloud(
   uid: string,
   state: AppState
 ): Promise<void> {
-  const existingDecksSnap = await getDocs(collection(db, 'users', uid, 'decks')).catch(
-    (err) => handleFirestoreError(err, OperationType.LIST, `users/${uid}/decks`)
-  );
+  const existingDecksSnap = await getDocs(
+    query(collection(db, 'users', uid, 'decks'), where('uid', '==', uid))
+  ).catch((err) => handleFirestoreError(err, OperationType.LIST, `users/${uid}/decks`));
   const existingDeckIds = new Set(existingDecksSnap.docs.map((d) => d.id));
 
-  const existingLogsSnap = await getDocs(collection(db, 'users', uid, 'logs')).catch(
-    (err) => handleFirestoreError(err, OperationType.LIST, `users/${uid}/logs`)
-  );
+  const existingLogsSnap = await getDocs(
+    query(collection(db, 'users', uid, 'logs'), where('uid', '==', uid))
+  ).catch((err) => handleFirestoreError(err, OperationType.LIST, `users/${uid}/logs`));
   const existingLogMap = new Map<string, DailyStudyLog>();
   for (const lDoc of existingLogsSnap.docs) {
     const l = lDoc.data();
@@ -313,7 +321,10 @@ export async function uploadLocalStateToCloud(
     const existingCardIds = new Set<string>();
     if (deckExists) {
       const existingCardsSnap = await getDocs(
-        collection(db, 'users', uid, 'decks', deckId, 'cards')
+        query(
+          collection(db, 'users', uid, 'decks', deckId, 'cards'),
+          where('uid', '==', uid)
+        )
       ).catch((err) =>
         handleFirestoreError(err, OperationType.LIST, `users/${uid}/decks/${deckId}/cards`)
       );
@@ -478,7 +489,12 @@ export async function syncDeleteDeck(uid: string, rawDeckId: string): Promise<vo
   const cardsPath = `users/${uid}/decks/${deckId}/cards`;
   const deckPath = `users/${uid}/decks/${deckId}`;
   try {
-    const cardsSnap = await getDocs(collection(db, 'users', uid, 'decks', deckId, 'cards'));
+    const cardsSnap = await getDocs(
+      query(
+        collection(db, 'users', uid, 'decks', deckId, 'cards'),
+        where('uid', '==', uid)
+      )
+    );
     const cardDocs = cardsSnap.docs;
     for (let i = 0; i < cardDocs.length; i += 400) {
       const batch = writeBatch(db);
@@ -702,7 +718,7 @@ export function subscribeToUserCloudData(
 
   const decksPath = `users/${uid}/decks`;
   const unsubDecks = onSnapshot(
-    collection(db, 'users', uid, 'decks'),
+    query(collection(db, 'users', uid, 'decks'), where('uid', '==', uid)),
     (snap) => {
       if (disposed) return;
       const nextMetas: Array<Omit<Deck, 'cards'>> = snap.docs.map((dDoc) => {
@@ -741,7 +757,10 @@ export function subscribeToUserCloudData(
         if (!cardUnsubs.has(meta.id)) {
           const cardsPath = `users/${uid}/decks/${meta.id}/cards`;
           const unsubCard = onSnapshot(
-            collection(db, 'users', uid, 'decks', meta.id, 'cards'),
+            query(
+              collection(db, 'users', uid, 'decks', meta.id, 'cards'),
+              where('uid', '==', uid)
+            ),
             (cardsSnap) => {
               if (disposed) return;
               const cards: StudyCard[] = cardsSnap.docs.map((cDoc) => {
@@ -792,7 +811,7 @@ export function subscribeToUserCloudData(
 
   const logsPath = `users/${uid}/logs`;
   const unsubLogs = onSnapshot(
-    collection(db, 'users', uid, 'logs'),
+    query(collection(db, 'users', uid, 'logs'), where('uid', '==', uid)),
     (snap) => {
       if (disposed) return;
       const logs: Record<string, DailyStudyLog> = {};
