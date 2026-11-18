@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Kakuso — Japanese Kanji \u0026 Vocabulary Studio",
+  "description": "Minimalist Japanese Kanji handwriting and vocabulary study studio with real-time KanjiVG stroke validation, spaced repetition, contextual sentence practice, and study telemetry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

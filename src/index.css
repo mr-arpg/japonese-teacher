@@ -1,0 +1,57 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-jp: 'Noto Sans JP', 'Plus Jakarta Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+
+  .font-jp {
+    font-family: var(--font-jp);
+  }
+
+  .font-mono-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes gentle-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: gentle-shake 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes stroke-dash {
+  from {
+    stroke-dashoffset: var(--stroke-len, 220);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-ghost-stroke {
+  stroke-dasharray: var(--stroke-len, 220);
+  animation: stroke-dash 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake,
+  .animate-ghost-stroke {
+    animation: none;
+  }
+}

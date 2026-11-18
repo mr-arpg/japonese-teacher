@@ -1,0 +1,255 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateKey(dateKey) {
+      return dateKey is string && dateKey.size() == 10 && dateKey.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidSettings(s) {
+      return s is map
+        && s.keys().hasAll(['theme', 'dailyGoalType', 'dailyGoalTarget', 'showTracingGuideByDefault'])
+        && s.keys().hasOnly(['theme', 'dailyGoalType', 'dailyGoalTarget', 'showTracingGuideByDefault', 'customLearnedKanji'])
+        && s.theme in ['light', 'dark']
+        && s.dailyGoalType in ['minutes', 'cards']
+        && s.dailyGoalTarget is number
+        && s.dailyGoalTarget >= 1
+        && s.dailyGoalTarget <= 240
+        && s.showTracingGuideByDefault is bool
+        && (!('customLearnedKanji' in s) || (
+          s.customLearnedKanji is list
+          && s.customLearnedKanji.size() <= 3500
+          && (s.customLearnedKanji.size() == 0 || (s.customLearnedKanji[0] is string && s.customLearnedKanji[0].size() <= 8))
+        ));
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'settings', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'settings', 'createdAt', 'updatedAt'])
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 320
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000))
+        && isValidSettings(data.settings)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDeck(data, userId, deckId) {
+      return data.keys().hasAll(['id', 'uid', 'title', 'description', 'type', 'category', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'uid', 'title', 'description', 'type', 'kanjiMode', 'category', 'createdAt', 'updatedAt'])
+        && data.id == deckId
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 120
+        && data.description is string
+        && data.description.size() <= 600
+        && data.type in ['kanji', 'vocab']
+        && (!('kanjiMode' in data) || data.kanjiMode in ['writing', 'reading'])
+        && data.category is string
+        && data.category.size() >= 1
+        && data.category.size() <= 80
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStringList(arr, maxLen, maxElemLen) {
+      return arr is list
+        && arr.size() <= maxLen
+        && (arr.size() == 0 || (arr[0] is string && arr[0].size() <= maxElemLen));
+    }
+
+    function isValidCard(data, userId, deckId, cardId) {
+      return data.keys().hasAll([
+          'id', 'uid', 'deckId', 'type', 'kana', 'meanings', 'sentences',
+          'interval', 'easeFactor', 'repetitions', 'nextReview', 'lapses',
+          'correctCount', 'attemptCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'uid', 'deckId', 'type', 'character', 'kana', 'onyomi', 'kunyomi',
+          'meanings', 'radicals', 'strokeCount', 'customSvgPaths', 'sentences',
+          'interval', 'easeFactor', 'repetitions', 'nextReview', 'lapses',
+          'correctCount', 'attemptCount', 'lastReviewed', 'createdAt', 'updatedAt'
+        ])
+        && data.id == cardId
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.deckId == deckId
+        && data.type in ['kanji', 'vocab']
+        && (!('character' in data) || (data.character is string && data.character.size() <= 64))
+        && data.kana is string
+        && data.kana.size() <= 128
+        && (!('onyomi' in data) || isValidStringList(data.onyomi, 20, 48))
+        && (!('kunyomi' in data) || isValidStringList(data.kunyomi, 20, 48))
+        && isValidStringList(data.meanings, 30, 120)
+        && (!('radicals' in data) || isValidStringList(data.radicals, 20, 64))
+        && (!('strokeCount' in data) || (data.strokeCount is number && data.strokeCount >= 0 && data.strokeCount <= 64))
+        && (!('customSvgPaths' in data) || isValidStringList(data.customSvgPaths, 64, 2048))
+        && data.sentences is list
+        && data.sentences.size() <= 50
+        && (data.sentences.size() == 0 || data.sentences[0] is map)
+        && data.interval is number && data.interval >= 0 && data.interval <= 36500
+        && data.easeFactor is number && data.easeFactor >= 1.0 && data.easeFactor <= 5.0
+        && data.repetitions is number && data.repetitions >= 0 && data.repetitions <= 10000
+        && data.nextReview is number && data.nextReview >= 0
+        && data.lapses is number && data.lapses >= 0 && data.lapses <= 100000
+        && data.correctCount is number && data.correctCount >= 0 && data.correctCount <= 1000000
+        && data.attemptCount is number && data.attemptCount >= 0 && data.attemptCount <= 1000000
+        && (!('lastReviewed' in data) || (data.lastReviewed is number && data.lastReviewed >= 0))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDailyLog(data, userId, dateKey) {
+      return data.keys().hasAll([
+          'uid', 'date', 'seconds', 'cardsReviewed',
+          'strokesAttempted', 'strokesCorrect', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'date', 'seconds', 'cardsReviewed',
+          'strokesAttempted', 'strokesCorrect', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.date == dateKey
+        && data.seconds is number && data.seconds >= 0 && data.seconds <= 86400
+        && data.cardsReviewed is number && data.cardsReviewed >= 0 && data.cardsReviewed <= 50000
+        && data.strokesAttempted is number && data.strokesAttempted >= 0 && data.strokesAttempted <= 500000
+        && data.strokesCorrect is number && data.strokesCorrect >= 0 && data.strokesCorrect <= 500000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'email', 'settings', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['settings', 'updatedAt'])
+        );
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /decks/{deckId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(deckId);
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(deckId)
+          && isValidDeck(incoming(), userId, deckId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(deckId)
+          && isValidDeck(incoming(), userId, deckId)
+          && incoming().id == existing().id
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'kanjiMode', 'category', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(deckId);
+
+        match /cards/{cardId} {
+          allow get: if isOwner(userId) && isValidId(userId) && isValidId(deckId) && isValidId(cardId);
+          allow list: if isOwner(userId)
+            && resource.data.uid == request.auth.uid
+            && resource.data.deckId == deckId;
+          allow create: if isOwner(userId)
+            && isValidId(userId)
+            && isValidId(deckId)
+            && isValidId(cardId)
+            && isValidCard(incoming(), userId, deckId, cardId)
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time
+            && existsAfter(/databases/$(database)/documents/users/$(userId)/decks/$(deckId));
+          allow update: if isOwner(userId)
+            && isValidId(userId)
+            && isValidId(deckId)
+            && isValidId(cardId)
+            && isValidCard(incoming(), userId, deckId, cardId)
+            && incoming().id == existing().id
+            && incoming().uid == existing().uid
+            && incoming().deckId == existing().deckId
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && exists(/databases/$(database)/documents/users/$(userId)/decks/$(deckId))
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'interval', 'easeFactor', 'repetitions', 'nextReview',
+                'lapses', 'correctCount', 'attemptCount', 'lastReviewed', 'updatedAt'
+              ])
+              || incoming().diff(existing()).affectedKeys().hasOnly(['sentences', 'updatedAt'])
+              || incoming().diff(existing()).affectedKeys().hasOnly([
+                'character', 'kana', 'onyomi', 'kunyomi', 'meanings',
+                'radicals', 'strokeCount', 'customSvgPaths', 'sentences', 'updatedAt'
+              ])
+            );
+          allow delete: if isOwner(userId) && isValidId(userId) && isValidId(deckId) && isValidId(cardId);
+        }
+      }
+
+      match /logs/{dateKey} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateKey);
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidDateKey(dateKey)
+          && isValidDailyLog(incoming(), userId, dateKey)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidDateKey(dateKey)
+          && isValidDailyLog(incoming(), userId, dateKey)
+          && incoming().uid == existing().uid
+          && incoming().date == existing().date
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'seconds', 'cardsReviewed', 'strokesAttempted', 'strokesCorrect', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateKey);
+      }
+    }
+  }
+}

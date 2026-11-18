@@ -1,0 +1,268 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile and Kakuso study settings.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 320
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "settings": {
+          "type": "object",
+          "description": "User preferences including theme, daily goal, tracing guide default, and custom learned kanji."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "settings", "createdAt", "updatedAt"]
+    },
+    "Deck": {
+      "title": "Deck",
+      "description": "A Kanji or Vocabulary study deck owned by a user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "type": {
+          "type": "string",
+          "enum": ["kanji", "vocab"]
+        },
+        "kanjiMode": {
+          "type": "string",
+          "enum": ["writing", "reading"]
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "uid", "title", "description", "type", "category", "createdAt", "updatedAt"]
+    },
+    "StudyCard": {
+      "title": "StudyCard",
+      "description": "A single Kanji or Vocabulary flashcard inside a user's deck with SM-2 SRS metadata.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deckId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["kanji", "vocab"]
+        },
+        "character": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "kana": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "onyomi": {
+          "type": "array"
+        },
+        "kunyomi": {
+          "type": "array"
+        },
+        "meanings": {
+          "type": "array"
+        },
+        "radicals": {
+          "type": "array"
+        },
+        "strokeCount": {
+          "type": "number"
+        },
+        "customSvgPaths": {
+          "type": "array"
+        },
+        "sentences": {
+          "type": "array"
+        },
+        "interval": {
+          "type": "number"
+        },
+        "easeFactor": {
+          "type": "number"
+        },
+        "repetitions": {
+          "type": "number"
+        },
+        "nextReview": {
+          "type": "number"
+        },
+        "lapses": {
+          "type": "number"
+        },
+        "correctCount": {
+          "type": "number"
+        },
+        "attemptCount": {
+          "type": "number"
+        },
+        "lastReviewed": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "uid",
+        "deckId",
+        "type",
+        "kana",
+        "meanings",
+        "sentences",
+        "interval",
+        "easeFactor",
+        "repetitions",
+        "nextReview",
+        "lapses",
+        "correctCount",
+        "attemptCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DailyStudyLog": {
+      "title": "DailyStudyLog",
+      "description": "Daily study telemetry for a single calendar day (YYYY-MM-DD).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "cardsReviewed": {
+          "type": "number"
+        },
+        "strokesAttempted": {
+          "type": "number"
+        },
+        "strokesCorrect": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "date",
+        "seconds",
+        "cardsReviewed",
+        "strokesAttempted",
+        "strokesCorrect",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and study preferences scoped strictly to the authenticated owner."
+    },
+    "/users/{userId}/decks/{deckId}": {
+      "schema": { "$ref": "#/entities/Deck" },
+      "description": "User's Kanji and Vocabulary study decks."
+    },
+    "/users/{userId}/decks/{deckId}/cards/{cardId}": {
+      "schema": { "$ref": "#/entities/StudyCard" },
+      "description": "Individual study cards inside a deck, storing meanings, readings, sentences, and SRS state."
+    },
+    "/users/{userId}/logs/{dateKey}": {
+      "schema": { "$ref": "#/entities/DailyStudyLog" },
+      "description": "Per-day study telemetry keyed by YYYY-MM-DD local date string."
+    }
+  }
+}
