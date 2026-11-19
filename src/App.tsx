@@ -794,7 +794,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `kakuso-backup-${getLocalDateKey()}.json`;
+    a.download = `estera-samo-no-nihongo-backup-${getLocalDateKey()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -814,7 +814,7 @@ export default function App() {
       if (!validated) {
         setBackupMessage({
           type: 'error',
-          text: 'Invalid backup file structure. Please select a valid Kakuso JSON export.',
+          text: 'Invalid backup file structure. Please select a valid Estera-Samo no Nihongo JSON export.',
         });
         return;
       }

@@ -39,7 +39,7 @@ async function fetchUpstreamJson(url: string, cacheKey: string): Promise<unknown
   const response = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'Kakuso-Japanese-Study-Studio/1.0',
+      'User-Agent': 'Estera-Samo-no-Nihongo/1.0',
     },
   });
 
@@ -54,6 +54,99 @@ async function fetchUpstreamJson(url: string, cacheKey: string): Promise<unknown
   const json: unknown = await response.json();
   setCached(cacheKey, json);
   return json;
+}
+
+interface JotobaWord {
+  reading?: {
+    kana?: string;
+    kanji?: string;
+  };
+  common?: boolean;
+  senses?: Array<{
+    glosses?: string[];
+    pos?: Array<string | Record<string, unknown>>;
+    misc?: string;
+    field?: string;
+  }>;
+}
+
+function formatJotobaPos(posList?: Array<string | Record<string, unknown>>): string[] {
+  if (!Array.isArray(posList)) return [];
+  const out: string[] = [];
+  for (const item of posList) {
+    if (typeof item === 'string') {
+      out.push(item);
+    } else if (item && typeof item === 'object') {
+      const keys = Object.keys(item);
+      if (keys.length > 0) out.push(keys[0]);
+    }
+  }
+  return Array.from(new Set(out));
+}
+
+async function fetchJotobaFallback(rawKeyword: string, page: number): Promise<unknown> {
+  const normalizedQuery = rawKeyword.startsWith('#')
+    ? rawKeyword === '#verb'
+      ? 'する'
+      : rawKeyword === '#adjective'
+        ? 'いい'
+        : '日本'
+    : rawKeyword;
+
+  const cacheKey = `jotoba:${normalizedQuery.toLowerCase()}:${page}`;
+  const cached = getCached(cacheKey);
+  if (cached !== null) return cached;
+
+  const response = await fetch('https://jotoba.de/api/search/words', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'User-Agent': 'Estera-Samo-no-Nihongo/1.0',
+    },
+    body: JSON.stringify({
+      query: normalizedQuery,
+      language: 'English',
+      no_english: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Jotoba HTTP ${response.status}`);
+  }
+
+  const json = (await response.json()) as { words?: JotobaWord[] };
+  const allWords = Array.isArray(json.words) ? json.words : [];
+  const pageSize = 20;
+  const start = (page - 1) * pageSize;
+  const slice = allWords.slice(start, start + pageSize);
+
+  const mapped = {
+    meta: { status: 200 },
+    data: slice.map((w, idx) => ({
+      slug: w.reading?.kanji || w.reading?.kana || `word-${page}-${idx}`,
+      is_common: Boolean(w.common),
+      tags: [],
+      jlpt: [],
+      japanese: [
+        {
+          word: w.reading?.kanji,
+          reading: w.reading?.kana,
+        },
+      ],
+      senses: (w.senses ?? []).map((s) => ({
+        english_definitions: Array.isArray(s.glosses) ? s.glosses : [],
+        parts_of_speech: formatJotobaPos(s.pos),
+        tags: [s.misc, s.field].filter((v): v is string => typeof v === 'string' && v.length > 0),
+        info: [],
+        see_also: [],
+        antonyms: [],
+      })),
+    })),
+  };
+
+  setCached(cacheKey, mapped);
+  return mapped;
 }
 
 const ALLOWED_KANJI_LISTS = new Set([
@@ -72,7 +165,7 @@ const ALLOWED_KANJI_LISTS = new Set([
 export function createApiRouter(): Router {
   const router = express.Router();
 
-  // Japanese Word Dictionary (Jisho / JMdict)
+  // Japanese Word Dictionary (Jisho / JMdict with Jotoba fallback)
   router.get('/dictionary/words', async (req, res) => {
     const rawKeyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
     const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1);
@@ -90,10 +183,15 @@ export function createApiRouter(): Router {
       const data = await fetchUpstreamJson(url, cacheKey);
       res.json(data);
     } catch (err) {
-      const status = (err as { status?: number }).status || 502;
-      res.status(status).json({
-        error: 'Unable to fetch word dictionary entries from Jisho.',
-      });
+      try {
+        const fallbackData = await fetchJotobaFallback(rawKeyword, page);
+        res.json(fallbackData);
+      } catch {
+        const status = (err as { status?: number }).status || 502;
+        res.status(status).json({
+          error: 'Unable to fetch word dictionary entries from Jisho.',
+        });
+      }
     }
   });
 

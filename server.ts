@@ -31,7 +31,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Kakuso server running at http://0.0.0.0:${PORT}`);
+    console.log(`Estera-Samo no Nihongo server running at http://0.0.0.0:${PORT}`);
   });
 }
 

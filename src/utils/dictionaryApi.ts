@@ -326,7 +326,14 @@ export async function searchWordDictionary(
     `/api/dictionary/words?keyword=${encodeURIComponent(trimmed)}&page=${page}`
   );
   if (!res.ok) {
-    throw new Error(`Word dictionary request failed (HTTP ${res.status}).`);
+    let detail = '';
+    try {
+      const errBody = (await res.json()) as { error?: string };
+      if (errBody?.error) detail = `: ${errBody.error}`;
+    } catch {
+      // Ignore non-JSON error body
+    }
+    throw new Error(`Word dictionary request failed (HTTP ${res.status})${detail}.`);
   }
 
   const json = (await res.json()) as RawJishoResponse;

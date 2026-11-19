@@ -132,13 +132,16 @@ export const TopBar: React.FC<TopBarProps> = ({
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-[#FAF9F6]/95 dark:bg-[#121316]/95 backdrop-blur-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 xl:gap-8 px-4 sm:px-6 h-16">
-        {/* Zone 1: Single-line Brand wordmark */}
+        {/* Zone 1: Compact two-line Brand wordmark */}
         <button
           type="button"
           onClick={() => handleSelectNav('decks')}
-          className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600 cursor-pointer"
+          className="text-left text-[12px] sm:text-[13px] font-semibold leading-[1.15] tracking-tight text-zinc-900 dark:text-zinc-100 shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600 cursor-pointer"
         >
-          Kakuso
+          <span className="block whitespace-nowrap">Estera-Samo</span>
+          <span className="block whitespace-nowrap text-zinc-600 dark:text-zinc-400 font-medium">
+            no Nihongo
+          </span>
         </button>
 
         {/* Zone 2: Desktop single-line navigation links (no horizontal scrollbars) */}
